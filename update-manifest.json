@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "notes": "First Release.",
+  "exe": {
+    "url": "https://github.com/sapph1rer/vd-dl/releases/download/v0.13.4/vd-dl.exe",
+    "sha256": "655df95526c66f3cb32477b7effda1c69f5f91fde540b9e440a6bbb48e6687dd"
+  },
+  "updater": {
+    "url": "https://github.com/sapph1rer/vd-dl/releases/download/v0.13.4/vddl-updater.exe",
+    "sha256": "3f064e9347c63da3945242bd171515f3ab4c0241f7fe9bb70bb8fb0d5ff4e3b3"
+  }
+}
