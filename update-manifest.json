@@ -1,14 +1,14 @@
 {
-  "version": "1.0.3",
-  "notes": "v1.0.3: Improve compatibility, startup stability, resilient background workers, and crash logging.",
+  "version": "1.0.4",
+  "notes": "v1.0.4: room delivery reliability fix, public room mode (no trust/verify required for room chat), and route import improvements.",
   "exe": {
-    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.3/P2PChat-OneFile.exe",
-    "sha256": "955370aded676741ab3c85e734fa9e2b47dd5c01cf103fc0c2149aaab4533cb9"
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.4/P2PChat-OneFile.exe",
+    "sha256": "1c040afd8e27c7ba0a7990c7d0e77cc16d5e4cb2635f3c5b95f0a0086271f197"
   },
   "updater": {
-    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.3/updater.exe",
-    "sha256": "9c1dbc2268764dfb6c98e192f83353965d567074ab4b58e0df7189a38d186b6c"
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.4/updater.exe",
+    "sha256": "a7057085756734fdef0347db7951cd2c6b31e6ccf533f54fd39d07ffec21833d"
   },
-  "sig": "wo22tOxry965lfqdT8TuKqZikrzp/sm23Ykg9Gl2G3oGO+vtH+oZ+l1HJrM5dAoR05rSjRMApLpQl7YXVKdWCA==",
+  "sig": "bLpGEhGCxUCSozEhErJHFjkV01JLhYkQgqmRpS6Eihv0rXCra89DoqvB6nLcqEZC6KOJAR+RPoIu/bGM8leiCg==",
   "signing": "ed25519"
 }

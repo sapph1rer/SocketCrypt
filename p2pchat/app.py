@@ -55,7 +55,7 @@ from .tor_runtime import start_or_use_tor
 from .tor_utils import create_or_resume_onion, socks5_connect
 from .updater import UpdateError, apply_self_update, check_for_update
 
-APP_VERSION = '1.0.3'
+APP_VERSION = '1.0.4'
 APP_BUILD = APP_VERSION
 
 HELP = f"""=== HELP: P2P Onion Chat v{APP_VERSION} ===
@@ -102,6 +102,8 @@ Contacts & Direct Chat:
   /msg <text>                        legacy explicit send command
 
 Rooms (IRC-style):
+  - Public mode: room chat does NOT require contact import/trust/verify.
+  - Anyone with room invite code can join and chat.
   /rooms
   /list                              alias of /rooms
   /join <room> | /j <room>           create/join room and make it active
@@ -167,6 +169,7 @@ DEVICE_LOCK_FILE_TYPE = 'p2pchat-device-lock'
 DEVICE_LOCK_FILE_VERSION = 1
 CRASH_LOG_FILE = RUNTIME_DIR / 'crash.log'
 REQUIRE_VERIFIED_CONTACTS = True
+ROOMS_PUBLIC_OPEN = True
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -2430,7 +2433,7 @@ async def amain() -> None:
             if not contact:
                 skipped.append(f'missing contact: {name}')
                 continue
-            if REQUIRE_VERIFIED_CONTACTS and (not contact.trusted or not getattr(contact, 'verified', False)):
+            if not ROOMS_PUBLIC_OPEN and REQUIRE_VERIFIED_CONTACTS and (not contact.trusted or not getattr(contact, 'verified', False)):
                 skipped.append(f'unverified contact: {name}')
                 continue
             if _is_local_endpoint(contact.identity_pub_b64, contact.onion):
@@ -2964,12 +2967,13 @@ async def amain() -> None:
                         else:
                             log_system(f'unknown member: {query}')
                         return True
-                    if not contact.trusted:
-                        log_system(f'member not trusted: {contact.name}')
-                        return True
-                    if REQUIRE_VERIFIED_CONTACTS and not getattr(contact, 'verified', False):
-                        log_system(f'member not verified: {contact.name}')
-                        return True
+                    if not ROOMS_PUBLIC_OPEN:
+                        if not contact.trusted:
+                            log_system(f'member not trusted: {contact.name}')
+                            return True
+                        if REQUIRE_VERIFIED_CONTACTS and not getattr(contact, 'verified', False):
+                            log_system(f'member not verified: {contact.name}')
+                            return True
                     if contact.name not in members:
                         members.append(contact.name)
                 rooms[room_name] = {
@@ -3004,12 +3008,13 @@ async def amain() -> None:
                     else:
                         log_system('unknown member')
                     return True
-                if not contact.trusted:
-                    log_system(f'member not trusted: {contact.name}')
-                    return True
-                if REQUIRE_VERIFIED_CONTACTS and not getattr(contact, 'verified', False):
-                    log_system(f'member not verified: {contact.name}')
-                    return True
+                if not ROOMS_PUBLIC_OPEN:
+                    if not contact.trusted:
+                        log_system(f'member not trusted: {contact.name}')
+                        return True
+                    if REQUIRE_VERIFIED_CONTACTS and not getattr(contact, 'verified', False):
+                        log_system(f'member not verified: {contact.name}')
+                        return True
                 members = _room_members(room_name)
                 if contact.name in members:
                     log_system('member already in room')
@@ -3161,44 +3166,64 @@ async def amain() -> None:
                 unresolved_routes: list[str] = []
                 skipped_self = 0
                 for item in accepted_items:
-                    identity_pub = str(item.get('identity_pub', '')).strip()
+                    identity_pub_raw = str(item.get('identity_pub', '')).strip()
                     display_name = _sanitize_contact_name(str(item.get('name', '')).strip()) or 'peer'
                     onion_raw = str(item.get('onion', '')).strip()
-                    if not identity_pub:
-                        continue
-                    if _is_local_endpoint(identity_pub, onion_raw):
-                        skipped_self += 1
-                        continue
-                    contact = contacts.by_identity(identity_pub)
-                    if contact:
-                        if contact.name not in room['members']:
-                            room['members'].append(contact.name)
-                        mapped_contacts += 1
-                        peer = {
-                            'name': contact.name,
-                            'onion': contact.onion,
-                            'identity_pub': contact.identity_pub_b64,
-                            'fingerprint': contact.fingerprint,
-                        }
-                        if _upsert_room_peer(room_name, peer):
-                            peer_routes += 1
-                        continue
-
-                    if not onion_raw:
-                        unresolved_routes.append(display_name)
+                    if not identity_pub_raw:
                         continue
                     try:
-                        peer = {
-                            'name': display_name,
-                            'onion': normalize_onion(onion_raw),
-                            'identity_pub': normalize_identity_pub(identity_pub),
-                            'fingerprint': str(item.get('fingerprint', '')).strip(),
-                        }
+                        identity_pub = normalize_identity_pub(identity_pub_raw)
                     except ValueError:
                         unresolved_routes.append(display_name)
                         continue
-                    if _upsert_room_peer(room_name, peer):
-                        peer_routes += 1
+
+                    if _is_local_endpoint(identity_pub, onion_raw):
+                        skipped_self += 1
+                        continue
+
+                    contact = contacts.by_identity(identity_pub)
+                    if contact:
+                        display_name = contact.name
+                        if contact.name not in room['members']:
+                            room['members'].append(contact.name)
+                        mapped_contacts += 1
+
+                    route_added = False
+                    invite_onion = ''
+                    if onion_raw:
+                        try:
+                            invite_onion = normalize_onion(onion_raw)
+                        except ValueError:
+                            invite_onion = ''
+                    if invite_onion:
+                        peer = {
+                            'name': display_name,
+                            'onion': invite_onion,
+                            'identity_pub': identity_pub,
+                            'fingerprint': str(item.get('fingerprint', '')).strip() or identity_fingerprint(identity_pub),
+                        }
+                        if _upsert_room_peer(room_name, peer):
+                            peer_routes += 1
+                        route_added = True
+
+                    if contact:
+                        try:
+                            contact_onion = normalize_onion(contact.onion)
+                        except Exception:
+                            contact_onion = ''
+                        if contact_onion:
+                            peer = {
+                                'name': contact.name,
+                                'onion': contact_onion,
+                                'identity_pub': contact.identity_pub_b64,
+                                'fingerprint': contact.fingerprint,
+                            }
+                            if _upsert_room_peer(room_name, peer):
+                                peer_routes += 1
+                            route_added = True
+
+                    if not route_added:
+                        unresolved_routes.append(display_name)
 
                 _save_rooms_map(rooms)
                 active_room['name'] = room_name
