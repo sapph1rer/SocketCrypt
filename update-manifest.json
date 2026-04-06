@@ -9,6 +9,6 @@
     "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.2/updater.exe",
     "sha256": "a98f6a1c481cc0aa758ad972a30b901f6bc7d396f6fdc711e9c48c69f1297a9e"
   },
-  "sig": "s4tszL6FjiejJhF8Z38e3RZ1wIOmR601YrYqF6lmwfw0qsJyoqYQm6Hsr7xJEJvEn1pKCm3HaIiGanbIvJFEAw==",
+  "sig": "+K678QynaCuQh3+EWq+laDxVy362wm+5qwqgwW8YqHvoKbYYoRz+orYMlvCwD9I/ODWDMN6OupxZEHaJ11BEAQ==",
   "signing": "ed25519"
 }
