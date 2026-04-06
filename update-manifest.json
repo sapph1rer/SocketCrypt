@@ -2,11 +2,11 @@
   "version": "1.0.0",
   "notes": "First Release.",
   "exe": {
-    "url": "https://github.com/sapph1rer/vd-dl/releases/download/v0.13.4/vd-dl.exe",
-    "sha256": "655df95526c66f3cb32477b7effda1c69f5f91fde540b9e440a6bbb48e6687dd"
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.0/P2PChat-OneFile.exe",
+    "sha256": "9ef33e6a7578d5b01e94e95b8189510e68a757922f6c6b2122da125d86fb4c1e"
   },
   "updater": {
-    "url": "https://github.com/sapph1rer/vd-dl/releases/download/v0.13.4/vddl-updater.exe",
-    "sha256": "3f064e9347c63da3945242bd171515f3ab4c0241f7fe9bb70bb8fb0d5ff4e3b3"
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.0/updater.exe",
+    "sha256": "53a7f90a1ec2473ea0b2e080b43027c0bf4c34a3f7691328d482b5b58f1bbcc7"
   }
 }
