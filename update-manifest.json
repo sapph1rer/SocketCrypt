@@ -3,11 +3,11 @@
   "notes": "v1.0.2: encrypted local state with device lock key, strict signed update manifest, privacy profiles (normal/hardened/paranoid), and room reliability v2 (route score + auto refresh).",
   "exe": {
     "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.2/P2PChat-OneFile.exe",
-    "sha256": "43123a86a1572ae54ef0f0883a7129f355ad55343291c00e6cf449bda4bc861e"
+    "sha256": "e8135ea4994f7a76fc9707469703ed03f3b1e91f72945e51f9e4bf45e63eec88"
   },
   "updater": {
     "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.2/updater.exe",
-    "sha256": "13cd46e514e737bb7b14743da4526dd6d94b9389020771087062bf38afea1531"
+    "sha256": "a98f6a1c481cc0aa758ad972a30b901f6bc7d396f6fdc711e9c48c69f1297a9e"
   },
   "sig": "s4tszL6FjiejJhF8Z38e3RZ1wIOmR601YrYqF6lmwfw0qsJyoqYQm6Hsr7xJEJvEn1pKCm3HaIiGanbIvJFEAw==",
   "signing": "ed25519"
