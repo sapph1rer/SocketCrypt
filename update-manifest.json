@@ -1,12 +1,14 @@
 {
-  "version": "1.0.1",
-  "notes": "Add restore backup. Signed Update Manifest. Message ACK + De-dup",
+  "version": "1.0.2",
+  "notes": "v1.0.2: encrypted local state with device lock key, strict signed update manifest, privacy profiles (normal/hardened/paranoid), and room reliability v2 (route score + auto refresh).",
   "exe": {
-    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.1/P2PChat-OneFile.exe",
-    "sha256": "a10a11e6c8c565f6b94faf5587089649c35272564aabd5c87b1ef3145bc51e41"
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.2/P2PChat-OneFile.exe",
+    "sha256": "43123a86a1572ae54ef0f0883a7129f355ad55343291c00e6cf449bda4bc861e"
   },
   "updater": {
-    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.1/updater.exe",
-    "sha256": "ac19ba63e2671fc4b89f053de2d5a204cc7551b32aacfca205559bfcb3d0359f"
-  }
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.2/updater.exe",
+    "sha256": "13cd46e514e737bb7b14743da4526dd6d94b9389020771087062bf38afea1531"
+  },
+  "sig": "s4tszL6FjiejJhF8Z38e3RZ1wIOmR601YrYqF6lmwfw0qsJyoqYQm6Hsr7xJEJvEn1pKCm3HaIiGanbIvJFEAw==",
+  "signing": "ed25519"
 }
