@@ -52,6 +52,100 @@ class UpdateApplyResult:
     restart_required: bool
 
 
+def _request_headers() -> dict[str, str]:
+    headers = {
+        "Cache-Control": "no-cache, no-store, max-age=0",
+        "Pragma": "no-cache",
+        "User-Agent": "p2pchat-updater/1.0",
+    }
+    gh_token = os.environ.get("P2PCHAT_GITHUB_TOKEN", "").strip()
+    if gh_token:
+        headers["Authorization"] = f"Bearer {gh_token}"
+        headers["X-GitHub-Api-Version"] = "2022-11-28"
+    return headers
+
+
+def _cache_bust_url(url: str) -> str:
+    parsed = urlparse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}_ts={int(time.time())}"
+
+
+def _download_bytes(url: str, timeout: float) -> bytes:
+    req = urlrequest.Request(url, headers=_request_headers())
+    with urlrequest.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _parse_raw_github_manifest_url(manifest_url: str) -> tuple[str, str, str, str] | None:
+    parsed = urlparse.urlparse(manifest_url)
+    if parsed.scheme not in ("http", "https"):
+        return None
+    if parsed.netloc.lower() != "raw.githubusercontent.com":
+        return None
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 4:
+        return None
+    owner = parts[0]
+    repo = parts[1]
+    if parts[2] == "refs" and len(parts) >= 6 and parts[3] in ("heads", "tags"):
+        ref = parts[4]
+        rel_path = "/".join(parts[5:])
+        return owner, repo, ref, rel_path
+    ref = parts[2]
+    rel_path = "/".join(parts[3:])
+    return owner, repo, ref, rel_path
+
+
+def _fetch_manifest_via_github_api(manifest_url: str, timeout: float) -> bytes:
+    parsed = _parse_raw_github_manifest_url(manifest_url)
+    if parsed is None:
+        raise UpdateError("manifest URL is not a supported raw.githubusercontent.com URL")
+    owner, repo, ref, rel_path = parsed
+    encoded_rel_path = urlparse.quote(rel_path, safe="/")
+    api_url = (
+        f"https://api.github.com/repos/{owner}/{repo}/contents/{encoded_rel_path}"
+        f"?ref={urlparse.quote(ref, safe='')}"
+    )
+    body = _download_bytes(api_url, timeout)
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise UpdateError("GitHub API returned invalid JSON for manifest content.") from exc
+    if not isinstance(payload, dict):
+        raise UpdateError("GitHub API returned invalid manifest content envelope.")
+    if str(payload.get("type", "")).strip().lower() != "file":
+        raise UpdateError("GitHub API manifest target is not a file.")
+    content_b64 = str(payload.get("content") or "").strip()
+    if not content_b64:
+        raise UpdateError("GitHub API response does not contain file content.")
+    content_b64 = content_b64.replace("\n", "")
+    try:
+        return base64.b64decode(content_b64.encode("ascii"))
+    except Exception as exc:
+        raise UpdateError("GitHub API manifest content is not valid base64.") from exc
+
+
+def _fetch_manifest_bytes(manifest_url: str, timeout: float) -> bytes:
+    api_err: Exception | None = None
+    parsed = _parse_raw_github_manifest_url(manifest_url)
+    if parsed is not None:
+        try:
+            return _fetch_manifest_via_github_api(manifest_url, timeout)
+        except Exception as exc:
+            api_err = exc
+    try:
+        return _download_bytes(_cache_bust_url(manifest_url), timeout)
+    except (urlerror.URLError, TimeoutError, OSError) as exc:
+        if api_err is not None:
+            raise UpdateError(
+                f"Could not fetch update manifest (GitHub API error: {api_err}; raw error: {exc})"
+            ) from exc
+        raise UpdateError(f"Could not fetch update manifest: {exc}") from exc
+
+
 def resolve_manifest_url(explicit: Optional[str] = None) -> str:
     if explicit and explicit.strip():
         return explicit.strip()
@@ -155,21 +249,10 @@ def fetch_update_info(
     signing_public_key_b64: Optional[str] = None,
     require_signed: Optional[bool] = None,
 ) -> UpdateInfo:
-    sep = "&" if "?" in manifest_url else "?"
-    cache_busted_url = f"{manifest_url}{sep}_ts={int(time.time())}"
-    req = urlrequest.Request(
-        cache_busted_url,
-        headers={
-            "Cache-Control": "no-cache, no-store, max-age=0",
-            "Pragma": "no-cache",
-            "User-Agent": "p2pchat-updater/1.0",
-        },
-    )
     try:
-        with urlrequest.urlopen(req, timeout=timeout) as resp:
-            body = resp.read()
-    except (urlerror.URLError, TimeoutError, OSError) as exc:
-        raise UpdateError(f"Could not fetch update manifest: {exc}") from exc
+        body = _fetch_manifest_bytes(manifest_url, timeout)
+    except UpdateError:
+        raise
 
     try:
         payload = json.loads(body.decode("utf-8"))

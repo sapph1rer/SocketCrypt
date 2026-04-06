@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -100,7 +101,10 @@ def save_json(path: Path, data: Any) -> None:
     payload: Any = data
     if _is_sensitive_path(path) and _STATE_KEY is not None:
         payload = _encrypt_payload(data)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    temp_path = path.with_suffix(path.suffix + '.tmp')
+    temp_path.write_text(text, encoding='utf-8')
+    os.replace(temp_path, path)
     try:
         path.chmod(0o600)
     except OSError:

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 import zlib
 from collections import deque
 from pathlib import Path
@@ -54,7 +55,7 @@ from .tor_runtime import start_or_use_tor
 from .tor_utils import create_or_resume_onion, socks5_connect
 from .updater import UpdateError, apply_self_update, check_for_update
 
-APP_VERSION = '1.0.2'
+APP_VERSION = '1.0.3'
 APP_BUILD = APP_VERSION
 
 HELP = f"""=== HELP: P2P Onion Chat v{APP_VERSION} ===
@@ -155,11 +156,16 @@ ROOM_RETRY_QUEUE_FILE = RUNTIME_DIR / 'room_retry_queue.json'
 RECONNECT_DELAYS = [2, 5, 10, 20, 30]
 UI_IDLE_SLEEP = 0.012
 UI_FULL_REDRAW_INTERVAL = 0.05
+STARTUP_TOR_RETRIES = 3
+STARTUP_ONION_RETRIES = 3
+STARTUP_RETRY_DELAY_SECONDS = 2.0
+WORKER_RESTART_DELAY_SECONDS = 1.5
 ROOM_ONLINE_WINDOW_SECONDS = 120
 ROOM_IDLE_WINDOW_SECONDS = 900
 DEVICE_LOCK_FILE = KEYS_DIR / 'device_lock.json'
 DEVICE_LOCK_FILE_TYPE = 'p2pchat-device-lock'
 DEVICE_LOCK_FILE_VERSION = 1
+CRASH_LOG_FILE = RUNTIME_DIR / 'crash.log'
 REQUIRE_VERIFIED_CONTACTS = True
 
 
@@ -461,6 +467,27 @@ def _debugger_attached() -> bool:
     except Exception:
         return False
     return False
+
+
+def _write_crash_log(exc: BaseException) -> Path | None:
+    try:
+        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        tb_text = ''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        lines = [
+            f'[{time.strftime("%Y-%m-%d %H:%M:%S")}] unhandled exception',
+            f'app_version={APP_VERSION}',
+            tb_text.rstrip(),
+            '',
+        ]
+        with CRASH_LOG_FILE.open('a', encoding='utf-8') as f:
+            f.write('\n'.join(lines))
+        try:
+            os.chmod(CRASH_LOG_FILE, 0o600)
+        except OSError:
+            pass
+        return CRASH_LOG_FILE
+    except Exception:
+        return None
 
 
 async def _run_with_status(func, label: str, tick: float = 0.25):
@@ -1466,7 +1493,24 @@ async def amain() -> None:
     if not should_continue:
         return
     print('[1/4] Starting Tor network runtime...')
-    managed_tor = await _run_with_status(start_or_use_tor, 'Starting Tor (first run may take a bit)')
+    managed_tor = None
+    last_tor_error: Exception | None = None
+    for attempt in range(1, STARTUP_TOR_RETRIES + 1):
+        try:
+            managed_tor = await _run_with_status(
+                start_or_use_tor,
+                f'Starting Tor (attempt {attempt}/{STARTUP_TOR_RETRIES})',
+            )
+            break
+        except Exception as e:
+            last_tor_error = e
+            print(f'[*] Tor startup failed (attempt {attempt}/{STARTUP_TOR_RETRIES}): {e}')
+            if attempt < STARTUP_TOR_RETRIES:
+                await asyncio.sleep(STARTUP_RETRY_DELAY_SECONDS)
+    if managed_tor is None:
+        print(f'[*] Tor could not start: {last_tor_error}')
+        print('[*] Please check local Tor/bundled tor files and try again.')
+        return
     if managed_tor.process:
         print(f'[*] started bundled Tor on socks {managed_tor.socks_port} / control {managed_tor.control_port}')
         atexit.register(managed_tor.stop)
@@ -1478,8 +1522,13 @@ async def amain() -> None:
         print('[*] Tor bootstrap: unknown (will continue and retry in background)')
 
     print('[2/4] Loading identity and contacts...')
-    signing_key = load_or_create_signing_key(IDENTITY_KEY_FILE)
-    contacts = ContactBook(CONTACTS_FILE)
+    try:
+        signing_key = load_or_create_signing_key(IDENTITY_KEY_FILE)
+        contacts = ContactBook(CONTACTS_FILE)
+    except Exception as e:
+        print(f'[*] failed to load local identity/contacts: {e}')
+        managed_tor.stop()
+        return
 
     ui_log: deque[str] = deque(maxlen=500)
     ui_status = {'value': 'ready'}
@@ -2058,13 +2107,44 @@ async def amain() -> None:
 
     _apply_privacy_profile(metadata_state['profile'], announce=False)
 
+    async def _run_resilient_worker(name: str, worker_coro) -> None:
+        while True:
+            try:
+                await worker_coro()
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                _append_log(ui_log, f'{name} worker crashed: {e}; restarting...', prefix='[*] ')
+                ui_dirty['value'] = True
+                await asyncio.sleep(WORKER_RESTART_DELAY_SECONDS)
+
     print('[3/4] Opening local chat listener...')
-    local_port = await node.start_listener()
+    try:
+        local_port = await node.start_listener()
+    except Exception as e:
+        print(f'[*] failed to open local listener: {e}')
+        managed_tor.stop()
+        return
     print('[4/4] Publishing onion endpoint...')
-    service_id, _, _ = await _run_with_status(
-        lambda: create_or_resume_onion(local_port, ONION_KEY_FILE),
-        'Publishing onion service',
-    )
+    service_id = None
+    last_onion_error: Exception | None = None
+    for attempt in range(1, STARTUP_ONION_RETRIES + 1):
+        try:
+            service_id, _, _ = await _run_with_status(
+                lambda: create_or_resume_onion(local_port, ONION_KEY_FILE),
+                f'Publishing onion service (attempt {attempt}/{STARTUP_ONION_RETRIES})',
+            )
+            break
+        except Exception as e:
+            last_onion_error = e
+            print(f'[*] onion publish failed (attempt {attempt}/{STARTUP_ONION_RETRIES}): {e}')
+            if attempt < STARTUP_ONION_RETRIES:
+                await asyncio.sleep(STARTUP_RETRY_DELAY_SECONDS)
+    if not service_id:
+        print(f'[*] could not publish onion service: {last_onion_error}')
+        managed_tor.stop()
+        return
     node.my_onion = f'{service_id}.onion'
     print('[*] Onion endpoint created (network propagation may take ~30-90s on fresh start)')
 
@@ -2074,8 +2154,10 @@ async def amain() -> None:
     await _run_first_run_wizard(node, contacts, my_id_pub, log_system)
     log_system('ready')
     _append_log(ui_log, 'type /help to open command reference in a separate window', prefix='[*] ')
-    room_retry_task['task'] = asyncio.create_task(room_retry_worker())
-    room_route_refresh_task['task'] = asyncio.create_task(room_route_refresh_worker())
+    room_retry_task['task'] = asyncio.create_task(_run_resilient_worker('room retry', room_retry_worker))
+    room_route_refresh_task['task'] = asyncio.create_task(
+        _run_resilient_worker('room route refresh', room_route_refresh_worker)
+    )
     pending_retry = len(room_retry_queue['items'])
     if pending_retry:
         _append_log(ui_log, f'room retry queue restored: {pending_retry} pending item(s)', prefix='[*] ')
@@ -2407,7 +2489,9 @@ async def amain() -> None:
         return ok, errors
 
     connection_health['value'] = await asyncio.to_thread(_refresh_connection_health_text)
-    connection_health_task['task'] = asyncio.create_task(connection_health_worker())
+    connection_health_task['task'] = asyncio.create_task(
+        _run_resilient_worker('connection health', connection_health_worker)
+    )
 
     async def process_line(line: str) -> bool:
         stripped = line.strip()
@@ -3909,7 +3993,10 @@ async def amain() -> None:
                 )
                 ui_dirty['value'] = False
             line = await asyncio.to_thread(input, f'{node.my_nick}> ')
-            running = await process_line(line)
+            try:
+                running = await process_line(line)
+            except Exception as e:
+                log_system(f'unexpected error: {e}')
             ui_dirty['value'] = True
 
     retry_task = room_retry_task.get('task')
@@ -3948,3 +4035,9 @@ def main() -> None:
     except KeyboardInterrupt:
         print('\nbye')
         sys.exit(0)
+    except Exception as e:
+        crash_log = _write_crash_log(e)
+        print(f'[*] fatal error: {e}')
+        if crash_log:
+            print(f'[*] crash log: {crash_log}')
+        sys.exit(1)
