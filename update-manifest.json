@@ -1,12 +1,12 @@
 {
   "version": "1.0.0",
-  "notes": "First Release.",
+  "notes": "Add restore backup. Signed Update Manifest. Message ACK + De-dup",
   "exe": {
-    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.0/P2PChat-OneFile.exe",
-    "sha256": "9ef33e6a7578d5b01e94e95b8189510e68a757922f6c6b2122da125d86fb4c1e"
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.1/P2PChat-OneFile.exe",
+    "sha256": "a10a11e6c8c565f6b94faf5587089649c35272564aabd5c87b1ef3145bc51e41"
   },
   "updater": {
-    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.0/updater.exe",
-    "sha256": "53a7f90a1ec2473ea0b2e080b43027c0bf4c34a3f7691328d482b5b58f1bbcc7"
+    "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.1/updater.exe",
+    "sha256": "ac19ba63e2671fc4b89f053de2d5a204cc7551b32aacfca205559bfcb3d0359f"
   }
 }
