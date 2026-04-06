@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "notes": "Add restore backup. Signed Update Manifest. Message ACK + De-dup",
   "exe": {
     "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.1/P2PChat-OneFile.exe",
