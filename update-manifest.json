@@ -1,6 +1,6 @@
 {
   "version": "1.0.2",
-  "notes": "v1.0.2: encrypted local state with device lock key, strict signed update manifest, privacy profiles (normal/hardened/paranoid), and room reliability v2 (route score + auto refresh).",
+  "notes": "v1.0.2: encrypted local state with device lock key, strict signed update manifest, privacy profiles (normal/hardened/paranoid), and room reliability v2 (route score + auto refresh).  v1.0.2-fix: Fix NameError: ENABLE_HISTORY is not defined",
   "exe": {
     "url": "https://github.com/sapph1rer/SocketCrypt/releases/download/1.0.2/P2PChat-OneFile.exe",
     "sha256": "e8135ea4994f7a76fc9707469703ed03f3b1e91f72945e51f9e4bf45e63eec88"
